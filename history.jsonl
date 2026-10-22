@@ -1,1 +1,2 @@
 {"commit": "f9782aa6a854afe719982cce964a39d658ca07ac", "state": "pending", "description": "Geprüft, wird veröffentlicht", "at": "2026-10-22T06:41:08+00:00"}
+{"commit": "f9782aa6a854afe719982cce964a39d658ca07ac", "state": "success", "description": "Live auf https://kiezwalk.com/tuebingen", "at": "2026-10-22T06:42:32+00:00", "bundle_sha256": "e928b19589c1e5faf98647b599fbede861574ee84812a3e077e7e40ffe9438ae", "deployment": "https://4000b46c.streetlore.pages.dev"}
