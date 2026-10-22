@@ -1,0 +1,6 @@
+*.mp3 binary
+*.wav binary
+*.webp binary
+*.jpg binary
+*.png binary
+city-bundles/*.json -diff
