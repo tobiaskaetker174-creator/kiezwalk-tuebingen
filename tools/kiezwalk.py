@@ -305,12 +305,15 @@ def cmd_publish(a):
 
 
 def _status(sha):
+    """Rückmeldung des Server-Wächters (Branch publish-status, Datei status.json)."""
     try:
         with urllib.request.urlopen(urllib.request.Request(
-                f"https://api.github.com/repos/{REPO}/commits/{sha}/status", headers=UA), timeout=30) as r:
+                f"https://api.github.com/repos/{REPO}/contents/status.json?ref=publish-status",
+                headers={**UA, "Accept": "application/vnd.github.raw+json"}), timeout=30) as r:
             st = json.loads(r.read())
-        s = [x for x in st.get("statuses", []) if x.get("context") == "kiezwalk/live"]
-        return (s[0]["state"], s[0].get("description", "")) if s else ("pending", "noch nicht abgeholt")
+        if st.get("commit") != sha:
+            return ("pending", "Server hat diesen Commit noch nicht abgeholt (alle 5 min)")
+        return (st["state"], st.get("description", ""))
     except Exception as e:
         return ("unknown", str(e))
 
@@ -323,7 +326,7 @@ def _wait(sha, timeout):
         live = hashlib.sha256(_get(LIVE_URL)).hexdigest()
         if live == want:
             print("LIVE ✓  https://kiezwalk.com/tuebingen"); return
-        if state in ("failure", "error"):
+        if state == "failure":
             sys.exit(f"Server hat abgelehnt: {desc}")
         print(f"… warte ({state}: {desc})"); time.sleep(60)
     sys.exit("Nach 30 min noch nicht live – später `python tools/kiezwalk.py status` ausführen.")
