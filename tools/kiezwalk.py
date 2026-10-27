@@ -143,6 +143,9 @@ def synthesize(text, lang):
             resp = json.loads(r.read())
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", "replace")[:600]
+        if e.code == 402:
+            sys.exit("Gemini-Guthaben leer (HTTP 402). NICHT aufladen und nicht wiederholen. Stattdessen kostenlos: "
+                     "python tools/kiezwalk.py tts <karten-id> --engine edge")
         if e.code == 429:
             sys.exit("Gemini-Kontingent erschöpft (429). Pausieren: 1 Minute (Minutenlimit) bzw. bis morgen (Tageslimit).\n" + detail)
         sys.exit(f"Gemini-Fehler {e.code}:\n{detail}")
@@ -158,6 +161,19 @@ def synthesize(text, lang):
     return data if data.startswith(b"RIFF") else _wav_from_pcm(data)
 
 
+EDGE_VOICES = {"de": "de-DE-FlorianMultilingualNeural", "en": "en-US-AndrewMultilingualNeural"}
+
+
+def synthesize_edge(text, lang, out_mp3):
+    """Kostenloses Microsoft-Neural-TTS (kein Schlüssel). Braucht: pip install edge-tts"""
+    try:
+        import asyncio
+        import edge_tts
+    except ImportError:
+        sys.exit("edge-tts fehlt: python -m pip install edge-tts")
+    asyncio.run(edge_tts.Communicate(text, EDGE_VOICES.get(lang, EDGE_VOICES["de"]), rate="-4%").save(str(out_mp3)))
+
+
 def cmd_tts(a):
     d = load()
     part_key = PART_KEY[a.part]
@@ -171,24 +187,38 @@ def cmd_tts(a):
         if not (body or "").strip():
             sys.exit(f"{c['id']}: kein Text für {a.part}.")
         text = f"{c['title'].strip()}.\n\n{body.strip()}" if a.part == "short" else body.strip()
-        wav = synthesize(text, lang)
-        tmp = ROOT / "media" / "audio" / "_tmp.wav"
-        tmp.write_bytes(wav)
-        with wave.open(str(tmp), "rb") as w:
-            secs = round(w.getnframes() / float(w.getframerate()), 1)
-        ext, data = "wav", wav
         ff = shutil.which("ffmpeg")
-        if ff:
-            mp3 = tmp.with_suffix(".mp3")
-            subprocess.run([ff, "-v", "error", "-y", "-i", str(tmp), "-b:a", "96k", str(mp3)], check=True)
-            ext, data = "mp3", mp3.read_bytes()
+        if a.engine == "edge":
+            mp3 = ROOT / "media" / "audio" / "_tmp.mp3"
+            synthesize_edge(text, lang, mp3)
+            probe = shutil.which("ffprobe")
+            try:
+                secs = round(float(subprocess.run([probe, "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(mp3)],
+                                                  capture_output=True, text=True).stdout.strip()), 1)
+            except Exception:
+                secs = 0
+            data, ext = mp3.read_bytes(), "mp3"
             mp3.unlink()
-        tmp.unlink()
+            model_name, voice_name = "edge-tts", EDGE_VOICES.get(lang, EDGE_VOICES["de"]).split("-")[2]
+        else:
+            wav = synthesize(text, lang)
+            tmp = ROOT / "media" / "audio" / "_tmp.wav"
+            tmp.write_bytes(wav)
+            with wave.open(str(tmp), "rb") as w:
+                secs = round(w.getnframes() / float(w.getframerate()), 1)
+            ext, data = "wav", wav
+            if ff:
+                mp3 = tmp.with_suffix(".mp3")
+                subprocess.run([ff, "-v", "error", "-y", "-i", str(tmp), "-b:a", "96k", str(mp3)], check=True)
+                ext, data = "mp3", mp3.read_bytes()
+                mp3.unlink()
+            tmp.unlink()
+            model_name, voice_name = TTS_MODEL, VOICE
         name = _media_name(f"{c['id']}-{a.part}", data, ext)
         (ROOT / "media" / "audio" / name).write_bytes(data)
         c.setdefault("audio_assets", {})[part_key] = {
             "length": part_key, "url": MEDIA_BASE + "audio/" + name, "duration_seconds": secs,
-            "transcript": text, "voice_profile": TTS_MODEL, "file_format": ext, "voice_label": VOICE}
+            "transcript": text, "voice_profile": model_name, "file_format": ext, "voice_label": voice_name}
         done = c["audio_assets"][part_key]
         print(f"OK {c['id']} {a.part}: media/audio/{name} ({secs} s){'' if ff else '  – WAV, weil ffmpeg fehlt'}")
     save(d)
@@ -355,7 +385,8 @@ def main():
     sub.add_parser("setup-key").set_defaults(f=cmd_setup_key)
     p = sub.add_parser("list"); p.add_argument("--lang", choices=["de", "en"]); p.set_defaults(f=cmd_list)
     p = sub.add_parser("show"); p.add_argument("card"); p.set_defaults(f=cmd_show)
-    p = sub.add_parser("tts"); p.add_argument("card"); p.add_argument("--part", choices=["short", "deep"], default="short"); p.set_defaults(f=cmd_tts)
+    p = sub.add_parser("tts"); p.add_argument("card"); p.add_argument("--part", choices=["short", "deep"], default="short")
+    p.add_argument("--engine", choices=["gemini", "edge"], default="gemini", help="edge = kostenlos, ohne Schlüssel"); p.set_defaults(f=cmd_tts)
     p = sub.add_parser("add-image")
     p.add_argument("card"); p.add_argument("file")
     for k in ("caption", "credit", "license", "license_url", "source_url"):

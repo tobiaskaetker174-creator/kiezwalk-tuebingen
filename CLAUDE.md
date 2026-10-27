@@ -25,7 +25,7 @@ Ort und Thema in den ersten 1–2 Sätzen. Erwachsen, natürlich, beim Gehen ver
 - Medien nur aus `media/` dieses Repos; keine fremden URLs.
 - Mehr als 20 % der Karten auf einmal löschen wird abgelehnt.
 - Bestehende Karten dürfen geändert und verbessert werden; IDs bleiben gleich.
-- Kosten: TTS läuft im Gemini-Gratis-Kontingent. Nie Abrechnung aktivieren, nie neue Schlüssel/Projekte anlegen. Bei 429 pausieren.
+- Kosten: Der Gemini-Schlüssel hängt an einem Prepaid-Guthaben von Tobias (kein Gratis-Kontingent, Stand 27.10.2026). Bei HTTP 402 „prepayment credits are depleted“ sofort aufhören, nichts aufladen, nicht wiederholen, und kostenlos weitermachen mit `python tools/kiezwalk.py tts <id> --engine edge` (Microsoft-Neural-TTS, kein Schlüssel; Voraussetzung `python -m pip install edge-tts`). Bei 429 eine Minute pausieren. Nie Abrechnung aktivieren, nie neue Schlüssel/Projekte anlegen.
 - Schlüssel nie in Dateien, Commits, Chat oder Logs.
 
 ## Status prüfen
